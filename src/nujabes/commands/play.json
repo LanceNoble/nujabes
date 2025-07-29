@@ -1,0 +1,12 @@
+{
+    "name": "play",
+    "description": "play a song",
+    "options": [
+        {
+            "type": 3,
+            "name": "song",
+            "description": "title or yt link",
+            "required": true
+        }
+    ]
+}
