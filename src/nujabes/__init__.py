@@ -7,14 +7,12 @@ from random import random
 from websockets.asyncio.client import connect, ClientConnection
 from websockets.exceptions import ConnectionClosed, ConcurrencyError, InvalidURI, InvalidProxy, InvalidHandshake
 
-async def beat(client: ClientConnection, connectionState: dict[str, int]) -> bool:
+async def beat(client: ClientConnection, connectionState: dict[str, int]):
     prevNumAcks = connectionState["numAcks"]
     await client.send(dumps({"op": 1, "d": connectionState["sequence"]}))
     await sleep(5)
     if connectionState["numAcks"] == prevNumAcks:
         await client.close()
-        return False
-    return True
 
 async def repeat(interval: int, client: ClientConnection, connectionState: dict[str, int]):
     numBeats = 0
@@ -24,11 +22,27 @@ async def repeat(interval: int, client: ClientConnection, connectionState: dict[
         else:
             await sleep(interval / 1000)
         numBeats += 1
-        if await beat(client, connectionState) == False:
-            return
+        await beat(client, connectionState)
+
+async def respond(id, token):
+    response = urlopen(Request(
+        f"https://discord.com/api/v10/interactions/{id}/{token}/callback",
+        data=dumps({
+            "type": 4,
+            "data": {
+                "content": "Congrats on sending your command!"
+            }
+        }).encode(),
+        headers={
+            "User-Agent": "nujabes (https://github.com/LanceNoble/Nujabes, 1.0)",
+            "Authorization": f"Bot {token}",
+            "Content-Type": "application/json"
+        }
+    ))
+
 
 async def enter():
-    stream = open("../../token")
+    stream = open("token")
     token = stream.read()
     stream.close()
 
@@ -44,8 +58,7 @@ async def enter():
     # b'{"url":"wss://gateway.discord.gg","session_start_limit":{"max_concurrency":1,"remaining":1000,"reset_after":0,"total":1000},"shards":1}\n'
 
     client = await connect(f"{gate['url']}/?v=10&encoding=json")
-    connectionState = {"numAcks": 0, "sequence": None}
-    task1 = create_task(repeat(loads(await client.recv())["d"]["heartbeat_interval"], client, connectionState))
+    heartbeat = loads(await client.recv())
     await client.send(dumps({
         "op": 2,
         "d": {
@@ -60,10 +73,21 @@ async def enter():
     }))
     idValidationResult = loads(await client.recv())
     if idValidationResult["op"] == 9:
+        client.close()
         return
-    # while True:
-    #     await client.recv()
+    connectionState = {"numAcks": 0, "sequence": None}
+    task1 = create_task(repeat(heartbeat["d"]["heartbeat_interval"], client, connectionState))
+
+    while True:
+        message = loads(await client.recv())
+        print(message)
+        if message["op"] == 0:
+            connectionState["sequence"] = message["s"]
+            create_task(respond(message["d"]["id"], message["d"]["token"]))
+        elif message["op"] == 1:
+            create_task(beat())
+        elif message["op"] == 11:
+            connectionState["numAcks"] += 1
 
     task1.cancel()
-
 run(enter())
