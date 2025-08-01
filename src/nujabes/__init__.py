@@ -1,11 +1,14 @@
 from urllib.request import urlopen, Request
 from io import open
-from asyncio import run, sleep, create_task, timeout
+from asyncio import run, sleep, create_task, create_subprocess_exec
+from asyncio.subprocess import PIPE
 from json import loads, dumps
 from random import random
+from tempfile import TemporaryFile
 
 from websockets.asyncio.client import connect, ClientConnection
-from websockets.exceptions import ConnectionClosed, ConcurrencyError, InvalidURI, InvalidProxy, InvalidHandshake
+
+from yt_dlp import YoutubeDL
 
 async def beat(client: ClientConnection, connectionState: dict[str, int]):
     prevNumAcks = connectionState["numAcks"]
@@ -24,7 +27,9 @@ async def repeat(interval: int, client: ClientConnection, connectionState: dict[
         numBeats += 1
         await beat(client, connectionState)
 
-async def respond(id, token):
+async def respond(id: str, token: str):
+    #fp = TemporaryFile()
+
     response = urlopen(Request(
         f"https://discord.com/api/v10/interactions/{id}/{token}/callback",
         data=dumps({
@@ -40,8 +45,28 @@ async def respond(id, token):
         }
     ))
 
-
 async def enter():
+    ydl = YoutubeDL({
+        "format": "bestaudio",
+        "skip_download": True,
+    })
+    info = ydl.extract_info("https://www.youtube.com/watch?v=iqPAVCtRO3I")
+    proc = await create_subprocess_exec(
+        "../../bin/ffmpeg.exe", "-i", info["url"], "-c:a" , "libopus", "-ar", "48000", "-ac", "2", "-f", "opus", "pipe:1",
+        stdout=PIPE
+    )
+    try:
+        while True:
+            chunk = await proc.stdout.read(4096)
+            if not chunk:
+                break
+            # Process the chunk (e.g., write to file, analyze, etc.)
+            print(f"Received {len(chunk)} bytes")
+    finally:
+        await proc.wait()
+    ydl.close()
+    #await proc.communicate()
+
     stream = open("token")
     token = stream.read()
     stream.close()
@@ -90,4 +115,5 @@ async def enter():
             connectionState["numAcks"] += 1
 
     task1.cancel()
+
 run(enter())
