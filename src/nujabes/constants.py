@@ -1,5 +1,5 @@
 baseUrl = "https://discord.com/api/v10"
-_stream = open("../../token")
+_stream = open("../../2token")
 botToken = _stream.read()
 _stream.close()
 botHeaders = {
