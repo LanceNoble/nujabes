@@ -7,15 +7,18 @@ from random import random
 from yt_dlp import YoutubeDL
 from client import Client
 
-stream = open("token")
-token = stream.read()
-stream.close()
+# stream = open("token")
+# token = stream.read()
+# stream.close()
 
-foo = Client("nujabes", "https://github.com/LanceNoble/nujabes", "1.0", token)
+# foo = Client("nujabes", "https://github.com/LanceNoble/nujabes", "1.0", token)
 
-async def play(context):
+# async def play(context):
     
-    pass
-foo.add_slash_handler(play)
+#     pass
+# foo.add_slash_handler(play)
 
-foo.connect()
+# foo.connect()
+
+bar = YoutubeDL()
+bar.extract_info()
